@@ -1,3 +1,5 @@
+import os
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
 from typing import List, Optional
 from langchain_core.documents import Document
 from langchain_chroma import Chroma

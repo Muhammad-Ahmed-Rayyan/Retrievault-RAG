@@ -9,6 +9,7 @@ __pycache__/
 *.pyo
 
 # Data
+data/uploads/
 data/chroma_db/
 *.db
 *.sqlite3

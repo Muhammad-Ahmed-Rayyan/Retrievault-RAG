@@ -22,6 +22,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
+from app.core.vectorstore import get_embedding_model
+
+@app.on_event("startup")
+def preload_models():
+    """Warm up the embedding model at server startup, not on first request."""
+    print("Preloading embedding model...")
+    get_embedding_model()
+    print("Embedding model ready.")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten this for production use
@@ -58,6 +67,7 @@ async def upload_document(file: UploadFile = File(...)):
     Accept a document upload (PDF, DOCX, TXT, or XLSX), process it,
     and add it to the vector store.
     """
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = UPLOAD_DIR / file.filename
 
     try:

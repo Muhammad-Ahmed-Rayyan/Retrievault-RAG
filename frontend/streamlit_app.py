@@ -22,7 +22,7 @@ if "documents_uploaded" not in st.session_state:
 def upload_file_to_backend(uploaded_file) -> dict:
     """Send an uploaded file to the FastAPI /upload endpoint."""
     files = {"file": (uploaded_file.name, uploaded_file.getvalue())}
-    response = requests.post(f"{API_BASE_URL}/upload", files=files, timeout=120)
+    response = requests.post(f"{API_BASE_URL}/upload", files=files, timeout=300)
     response.raise_for_status()
     return response.json()
 
