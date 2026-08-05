@@ -2,18 +2,61 @@ from pathlib import Path
 from typing import List
 
 from langchain_core.documents import Document
-from langchain_community.document_loaders import (
-    PyPDFLoader,
-    Docx2txtLoader,
-    TextLoader,
-    UnstructuredExcelLoader,
-)
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".xlsx"}
 
 class UnsupportedFileTypeError(Exception):
     """Raised when a file extension isn't in SUPPORTED_EXTENSIONS."""
     pass
+
+from openpyxl import load_workbook
+from langchain_core.documents import Document as LCDocument
+
+
+class _ExcelRowLoader:
+    """
+    Lightweight XLSX loader using openpyxl directly, avoiding the
+    heavier and slower 'unstructured' parsing stack. Converts each
+    sheet into row-wise text so semantic search can still find values.
+    """
+
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+
+    def load(self) -> list:
+        workbook = load_workbook(self.file_path, data_only=True)
+        documents = []
+
+        for sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+            rows = list(sheet.iter_rows(values_only=True))
+
+            if not rows:
+                continue
+
+            headers = [str(h) if h is not None else "" for h in rows[0]]
+
+            batch_size = 20
+            for i in range(1, len(rows), batch_size):
+                batch = rows[i:i + batch_size]
+                lines = []
+                for row in batch:
+                    row_text = ", ".join(
+                        f"{headers[j]}: {val}" for j, val in enumerate(row)
+                        if j < len(headers) and val is not None
+                    )
+                    if row_text:
+                        lines.append(row_text)
+
+                if lines:
+                    content = f"Sheet: {sheet_name}\n" + "\n".join(lines)
+                    documents.append(LCDocument(
+                        page_content=content,
+                        metadata={"sheet_name": sheet_name, "row_start": i},
+                    ))
+
+        return documents
+
 
 def load_document(file_path: str) -> List[Document]:
     """
@@ -60,7 +103,7 @@ def _get_loader(file_path: str, extension: str):
         ".pdf": lambda p: PyPDFLoader(p),
         ".docx": lambda p: Docx2txtLoader(p),
         ".txt": lambda p: TextLoader(p, encoding="utf-8"),
-        ".xlsx": lambda p: UnstructuredExcelLoader(p, mode="elements"),
+        ".xlsx": lambda p: _ExcelRowLoader(p),
     }
     return loader_map[extension](file_path)
 

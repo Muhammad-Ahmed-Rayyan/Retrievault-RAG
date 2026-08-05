@@ -63,10 +63,6 @@ def health_check():
 
 @app.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
-    """
-    Accept a document upload (PDF, DOCX, TXT, or XLSX), process it,
-    and add it to the vector store.
-    """
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_path = UPLOAD_DIR / file.filename
 
@@ -93,6 +89,8 @@ async def upload_document(file: UploadFile = File(...)):
     except UnsupportedFileTypeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {e}")
 
 
