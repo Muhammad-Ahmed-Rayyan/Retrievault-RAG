@@ -28,6 +28,8 @@ Built with the tools and technologies:
 
 Retrievault combines document ingestion, semantic search, and large language model generation into a single pipeline. Documents are parsed, chunked, embedded, and stored in a local vector database; user questions are answered using only the retrieved context, with source attribution and multi-turn conversation memory.
 
+[Try it out Here](https://retrievault-rag.streamlit.app)
+
 ---
 
 ## 🚀 Features
