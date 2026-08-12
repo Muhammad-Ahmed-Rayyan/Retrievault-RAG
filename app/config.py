@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    chroma_persist_dir: str = "./data/chroma_db"
+    chroma_persist_dir: str = "/tmp/chroma_db"
 
     llm_provider: str = "groq"
     llm_model: str = "llama-3.3-70b-versatile"

@@ -1,8 +1,22 @@
+import os
+import sys
 import uuid
-import requests
+import tempfile
+from pathlib import Path
+
 import streamlit as st
 
-API_BASE_URL = "http://localhost:8000"
+# Allow imports from the app/ package when run from the frontend/ directory
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+if "GROQ_API_KEY" in st.secrets:
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+
+from app.ingestion.loaders import load_document, UnsupportedFileTypeError
+from app.utils.text_splitter import split_documents
+from app.core.vectorstore import build_vectorstore, add_documents_to_vectorstore
+from app.core.rag_chain import ask_question
+from app.core.memory import memory_store
 
 st.set_page_config(
     page_title="Retrievault",
@@ -10,38 +24,48 @@ st.set_page_config(
     layout="wide",
 )
 
-# Session state initialization
+# --- Session state initialization ---
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []  # list of (role, text, sources)
+    st.session_state.chat_history = []
 if "documents_uploaded" not in st.session_state:
     st.session_state.documents_uploaded = []
+if "vectorstore" not in st.session_state:
+    st.session_state.vectorstore = None
 
 
-def upload_file_to_backend(uploaded_file) -> dict:
-    """Send an uploaded file to the FastAPI /upload endpoint."""
-    files = {"file": (uploaded_file.name, uploaded_file.getvalue())}
-    response = requests.post(f"{API_BASE_URL}/upload", files=files, timeout=300)
-    response.raise_for_status()
-    return response.json()
+def process_uploaded_file(uploaded_file) -> dict:
+    """
+    Save the uploaded file to a temporary path, load and chunk it,
+    then add it to the session's vector store.
+    """
+    suffix = Path(uploaded_file.name).suffix
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(uploaded_file.getvalue())
+        tmp_path = tmp.name
+
+    try:
+        raw_docs = load_document(tmp_path)
+        for doc in raw_docs:
+            doc.metadata["source_file"] = uploaded_file.name  # use real filename, not temp path
+
+        chunks = split_documents(raw_docs)
+
+        if st.session_state.vectorstore is None:
+            st.session_state.vectorstore = build_vectorstore(
+                chunks, collection_name=st.session_state.session_id
+            )
+        else:
+            add_documents_to_vectorstore(st.session_state.vectorstore, chunks)
+
+        return {"filename": uploaded_file.name, "chunks_created": len(chunks)}
+
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
 
-def send_chat_message(question: str) -> dict:
-    """Send a question to the FastAPI /chat endpoint."""
-    payload = {"question": question, "session_id": st.session_state.session_id}
-    response = requests.post(f"{API_BASE_URL}/chat", json=payload, timeout=120)
-    response.raise_for_status()
-    return response.json()
-
-
-def clear_session():
-    """Reset conversation memory both locally and on the backend."""
-    requests.post(f"{API_BASE_URL}/session/{st.session_state.session_id}/clear", timeout=30)
-    st.session_state.chat_history = []
-
-
-# Sidebar: document upload
+# --- Sidebar: document upload ---
 with st.sidebar:
     st.title("📚 Retrievault")
     st.caption("Document-grounded Q&A")
@@ -56,14 +80,16 @@ with st.sidebar:
         if st.button("Index Document", use_container_width=True):
             with st.spinner(f"Processing {uploaded_file.name}..."):
                 try:
-                    result = upload_file_to_backend(uploaded_file)
+                    result = process_uploaded_file(uploaded_file)
                     st.session_state.documents_uploaded.append(uploaded_file.name)
                     st.success(
                         f"Indexed '{result['filename']}' "
                         f"({result['chunks_created']} chunks)"
                     )
-                except requests.exceptions.RequestException as e:
-                    st.error(f"Upload failed: {e}")
+                except UnsupportedFileTypeError as e:
+                    st.error(str(e))
+                except Exception as e:
+                    st.error(f"Ingestion failed: {e}")
 
     if st.session_state.documents_uploaded:
         st.subheader("Indexed Documents")
@@ -72,45 +98,52 @@ with st.sidebar:
 
     st.divider()
     if st.button("Clear Conversation", use_container_width=True):
-        clear_session()
+        memory_store.clear_session(st.session_state.session_id)
+        st.session_state.chat_history = []
         st.rerun()
 
 
-# Main panel: chat interface
+# --- Main panel: chat interface ---
 st.header("Chat with your documents")
 
 if not st.session_state.documents_uploaded:
     st.info("Upload a document from the sidebar to get started.")
 
-# Render chat history
 for role, text, sources in st.session_state.chat_history:
     with st.chat_message(role):
         st.markdown(text)
         if sources:
             st.caption(f"Sources: {', '.join(sources)}")
 
-# Chat input
 question = st.chat_input("Ask a question about your documents...")
 
 if question:
-    st.session_state.chat_history.append(("user", question, []))
-    with st.chat_message("user"):
-        st.markdown(question)
+    if st.session_state.vectorstore is None:
+        st.warning("Please upload and index a document first.")
+    else:
+        st.session_state.chat_history.append(("user", question, []))
+        with st.chat_message("user"):
+            st.markdown(question)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                result = send_chat_message(question)
-                answer = result["answer"]
-                sources = result.get("sources", [])
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    answer, source_docs = ask_question(
+                        vectorstore=st.session_state.vectorstore,
+                        question=question,
+                        session_id=st.session_state.session_id,
+                    )
+                    sources = list({
+                        doc.metadata.get("source_file", "unknown") for doc in source_docs
+                    })
 
-                st.markdown(answer)
-                if sources:
-                    st.caption(f"Sources: {', '.join(sources)}")
+                    st.markdown(answer)
+                    if sources:
+                        st.caption(f"Sources: {', '.join(sources)}")
 
-                st.session_state.chat_history.append(("assistant", answer, sources))
+                    st.session_state.chat_history.append(("assistant", answer, sources))
 
-            except requests.exceptions.RequestException as e:
-                error_msg = f"Error: {e}"
-                st.error(error_msg)
-                st.session_state.chat_history.append(("assistant", error_msg, []))
+                except Exception as e:
+                    error_msg = f"Error: {e}"
+                    st.error(error_msg)
+                    st.session_state.chat_history.append(("assistant", error_msg, []))
