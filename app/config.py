@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "/tmp/chroma_db"
 
     llm_provider: str = "groq"
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-120b"
 
     chunk_size: int = 1000
     chunk_overlap: int = 200
