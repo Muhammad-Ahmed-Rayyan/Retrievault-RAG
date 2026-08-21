@@ -89,30 +89,18 @@ def build_rag_chain(vectorstore: Chroma):
 def ask_question(
     vectorstore: Chroma,
     question: str,
-    session_id: str = "default",
+    chat_history: list,
 ) -> Tuple[str, List[Document]]:
     """
-    High-level entry point: runs a question through the RAG chain,
-    updates conversation memory, and returns the answer with sources.
-
-    Args:
-        vectorstore: The Chroma vector store to retrieve from.
-        question: The user's natural language question.
-        session_id: Identifier for the conversation session (for memory).
-
-    Returns:
-        Tuple of (answer_text, list of source Documents used).
+    Runs a question through the RAG chain using externally-provided
+    chat history (caller manages persistence).
     """
     chain, retriever = build_rag_chain(vectorstore)
-
-    chat_history = memory_store.get_history(session_id)
     source_docs = retriever.invoke(question)
 
     answer = chain.invoke({
         "question": question,
         "chat_history": chat_history,
     })
-
-    memory_store.add_exchange(session_id, question, answer)
 
     return answer, source_docs

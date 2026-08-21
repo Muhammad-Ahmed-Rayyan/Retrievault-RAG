@@ -17,6 +17,7 @@ from app.utils.text_splitter import split_documents
 from app.core.vectorstore import build_vectorstore, add_documents_to_vectorstore
 from app.core.rag_chain import ask_question
 from app.core.memory import memory_store
+from langchain_core.messages import HumanMessage, AIMessage
 
 st.set_page_config(
     page_title="Retrievault",
@@ -34,6 +35,17 @@ if "documents_uploaded" not in st.session_state:
 if "vectorstore" not in st.session_state:
     st.session_state.vectorstore = None
 
+
+
+def build_langchain_history():
+    """Convert Streamlit's chat_history into LangChain message objects."""
+    messages = []
+    for role, text, _ in st.session_state.chat_history:
+        if role == "user":
+            messages.append(HumanMessage(content=text))
+        else:
+            messages.append(AIMessage(content=text))
+    return messages[-12:]
 
 def process_uploaded_file(uploaded_file) -> dict:
     """
@@ -131,7 +143,7 @@ if question:
                     answer, source_docs = ask_question(
                         vectorstore=st.session_state.vectorstore,
                         question=question,
-                        session_id=st.session_state.session_id,
+                        chat_history=build_langchain_history(),
                     )
                     sources = list({
                         doc.metadata.get("source_file", "unknown") for doc in source_docs
