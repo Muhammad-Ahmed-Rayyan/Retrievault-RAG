@@ -8,7 +8,7 @@ graph TD
     ING --> VDB[(ChromaDB<br/>Vector Store)]
     RAG --> VDB
     VDB --> EMB[HuggingFace Embeddings<br/>all-MiniLM-L6-v2]
-    RAG --> LLM[Groq API<br/>llama-3.3-70b-versatile]
+    RAG --> LLM[Groq API<br/>openai/gpt-oss-120b]
 
     style UI fill:#B5D4F4,stroke:#185FA5,color:#042C53
     style API fill:#B5D4F4,stroke:#185FA5,color:#042C53

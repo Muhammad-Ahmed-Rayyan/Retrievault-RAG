@@ -44,7 +44,7 @@ Retrievault combines document ingestion, semantic search, and large language mod
   Local vector database using ChromaDB
 
 - 🧠 **LLM-Powered Answer Generation**
-  Via Groq (`llama-3.3-70b-versatile`)
+  Via Groq (`openai/gpt-oss-120b`)
 
 - 💬 **Conversation Memory**
   Context-aware follow-up questions across multi-turn chats
