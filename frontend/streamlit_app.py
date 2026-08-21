@@ -35,8 +35,6 @@ if "documents_uploaded" not in st.session_state:
 if "vectorstore" not in st.session_state:
     st.session_state.vectorstore = None
 
-
-
 def build_langchain_history():
     """Convert Streamlit's chat_history into LangChain message objects."""
     messages = []

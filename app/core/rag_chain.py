@@ -23,14 +23,14 @@ or use outside knowledge.
 4. Keep answers concise and directly relevant to the question.
 5. If the user asks a follow-up question, use the conversation history \
 to understand what they're referring to.
-6. Do not use LaTeX formatting (no \\text{{}}, \\operatorname{{}}, or \\( \\) \
-notation). Write mathematical expressions and formulas in plain readable \
-text instead, e.g. "MultiHead(Q, K, V) = Concat(head_1, ..., head_h) * W_O".
+6. Do not use LaTeX, Markdown math syntax, or symbols like \\text{{}}, \\(, \\), \
+\\[, \\], \\frac, \\sqrt, or subscript/superscript notation with backslashes. \
+Write all formulas as plain text using standard characters only, for example: \
+"Attention(Q, K, V) = softmax(Q * K^T / sqrt(d_k)) * V".
 
 Context:
 {context}
 """
-
 
 def get_llm() -> ChatGroq:
     """Initialize the Groq-hosted LLM used for answer generation."""
